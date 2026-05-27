@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add Entry — Pharmacy</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <h1>&#x1f48a; Pharmacy</h1>
+            <nav class="nav-tabs">
+                <a href="/" class="nav-tab active">Add Entry</a>
+                <a href="/dashboard" class="nav-tab">Dashboard</a>
+            </nav>
+        </div>
+    </header>
+
+    <main>
+        <!-- Today's live totals -->
+        <section class="mini-stats">
+            <div class="mini-stat">
+                <span class="mini-label">Today Income</span>
+                <span class="mini-value income-text" id="mini-income">&#x20b9;0</span>
+            </div>
+            <div class="mini-divider"></div>
+            <div class="mini-stat">
+                <span class="mini-label">Today Expenses</span>
+                <span class="mini-value expense-text" id="mini-expenses">&#x20b9;0</span>
+            </div>
+            <div class="mini-divider"></div>
+            <div class="mini-stat">
+                <span class="mini-label">Today Profit</span>
+                <span class="mini-value" id="mini-profit">&#x20b9;0</span>
+            </div>
+        </section>
+
+        <!-- Forms -->
+        <section class="forms-grid">
+            <div class="form-card">
+                <h2 class="form-title income-title">+ Add Income</h2>
+                <form id="income-form">
+                    <div class="form-group">
+                        <label for="income-amount">Amount (&#x20b9;)</label>
+                        <input type="number" id="income-amount" placeholder="0.00" step="0.01" min="0.01" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="income-note">Note (optional)</label>
+                        <input type="text" id="income-note" placeholder="e.g. Prescription sales">
+                    </div>
+                    <button type="submit" class="btn btn-income">Add Income</button>
+                </form>
+            </div>
+
+            <div class="form-card">
+                <h2 class="form-title expense-title">&#x2212; Add Expense</h2>
+                <form id="expense-form">
+                    <div class="form-group">
+                        <label for="expense-amount">Amount (&#x20b9;)</label>
+                        <input type="number" id="expense-amount" placeholder="0.00" step="0.01" min="0.01" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="expense-note">Paid to / Note</label>
+                        <input type="text" id="expense-note" placeholder="e.g. Delight Biopharma">
+                    </div>
+                    <button type="submit" class="btn btn-expense">Add Expense</button>
+                </form>
+            </div>
+        </section>
+
+        <!-- Today's log (so you can delete mistakes) -->
+        <section class="log-section">
+            <div class="log-header">
+                <h2>Today's Entries</h2>
+            </div>
+            <div class="log-grid">
+                <div class="log-column">
+                    <h3 class="log-column-title income-title">Income</h3>
+                    <div id="income-list" class="entry-list">
+                        <p class="empty-msg">No income entries today</p>
+                    </div>
+                </div>
+                <div class="log-column">
+                    <h3 class="log-column-title expense-title">Expenses</h3>
+                    <div id="expense-list" class="entry-list">
+                        <p class="empty-msg">No expense entries today</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <div id="toast" class="toast"></div>
+    <script src="/static/common.js"></script>
+    <script>
+        async function refresh() {
+            const [summary, entries] = await Promise.all([
+                fetch('/api/summary').then(r => r.json()),
+                fetch('/api/entries/today').then(r => r.json())
+            ]);
+            updateMiniStats(summary.today);
+            renderTodayLists(entries);
+        }
+
+        document.getElementById('income-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const res = await fetch('/api/add_entry', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    type: 'income',
+                    amount: document.getElementById('income-amount').value,
+                    note: document.getElementById('income-note').value
+                })
+            });
+            if (res.ok) {
+                e.target.reset();
+                document.getElementById('income-amount').focus();
+                await refresh();
+                showToast('Income added!', 'success');
+            } else {
+                const err = await res.json();
+                showToast(err.error || 'Error', 'error');
+            }
+        });
+
+        document.getElementById('expense-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const res = await fetch('/api/add_entry', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    type: 'expense',
+                    amount: document.getElementById('expense-amount').value,
+                    note: document.getElementById('expense-note').value
+                })
+            });
+            if (res.ok) {
+                e.target.reset();
+                document.getElementById('expense-amount').focus();
+                await refresh();
+                showToast('Expense added!', 'success');
+            } else {
+                const err = await res.json();
+                showToast(err.error || 'Error', 'error');
+            }
+        });
+
+        refresh();
+    </script>
+</body>
+</html>

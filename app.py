@@ -1,7 +1,5 @@
 from flask import Flask, render_template, request, jsonify, send_file
 import sqlite3
-import requests
-import urllib.parse
 import csv
 import io
 from datetime import date, datetime
@@ -36,8 +34,18 @@ def get_db():
 
 
 @app.route('/')
-def index():
-    return render_template('index.html')
+def entry_page():
+    return render_template('entry.html')
+
+
+@app.route('/dashboard')
+def dashboard_page():
+    return render_template('dashboard.html')
+
+
+@app.route('/import')
+def import_page():
+    return render_template('import.html')
 
 
 @app.route('/api/add_entry', methods=['POST'])
@@ -78,6 +86,16 @@ def today_entries():
     return jsonify([dict(r) for r in rows])
 
 
+@app.route('/api/entries/all')
+def all_entries():
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT * FROM entries ORDER BY created_at DESC"
+    ).fetchall()
+    conn.close()
+    return jsonify([dict(r) for r in rows])
+
+
 @app.route('/api/summary')
 def summary():
     today = date.today().isoformat()
@@ -111,55 +129,6 @@ def delete_entry(entry_id):
     return jsonify({'success': True})
 
 
-@app.route('/api/send_whatsapp', methods=['POST'])
-def send_whatsapp():
-    phone = os.getenv('WHATSAPP_NUMBER', '').strip()
-    api_key = os.getenv('CALLMEBOT_API_KEY', '').strip()
-
-    if not phone or not api_key or api_key == 'your_api_key_here':
-        return jsonify({
-            'error': 'WhatsApp not configured. Add WHATSAPP_NUMBER and CALLMEBOT_API_KEY to your .env file.'
-        }), 400
-
-    today = date.today().isoformat()
-    conn = get_db()
-    income = conn.execute(
-        "SELECT COALESCE(SUM(amount),0) FROM entries WHERE type='income' AND date(created_at)=?", (today,)
-    ).fetchone()[0]
-    expenses = conn.execute(
-        "SELECT COALESCE(SUM(amount),0) FROM entries WHERE type='expense' AND date(created_at)=?", (today,)
-    ).fetchone()[0]
-    conn.close()
-
-    profit = income - expenses
-    message = (
-        f"Pharmacy Daily Summary \U0001f4ca\n"
-        f"Date: {today}\n"
-        f"Income: ₹{income:,.2f}\n"
-        f"Expenses: ₹{expenses:,.2f}\n"
-        f"Profit: ₹{profit:,.2f}"
-    )
-
-    url = (
-        "https://api.callmebot.com/whatsapp.php"
-        f"?phone={urllib.parse.quote(phone)}"
-        f"&text={urllib.parse.quote(message)}"
-        f"&apikey={api_key}"
-    )
-    try:
-        resp = requests.get(url, timeout=15)
-        if resp.status_code == 200:
-            return jsonify({'success': True})
-        return jsonify({'error': f'CallMeBot error: {resp.text}'}), 502
-    except requests.RequestException as e:
-        return jsonify({'error': str(e)}), 502
-
-
-@app.route('/import')
-def import_page():
-    return render_template('import.html')
-
-
 @app.route('/api/import_csv', methods=['POST'])
 def import_csv():
     file = request.files.get('csvfile')
@@ -167,12 +136,11 @@ def import_csv():
         return jsonify({'error': 'No file uploaded'}), 400
 
     try:
-        content = file.read().decode('utf-8-sig')  # utf-8-sig strips Excel BOM
+        content = file.read().decode('utf-8-sig')
     except UnicodeDecodeError:
         return jsonify({'error': 'File must be UTF-8 encoded. Save your Excel as CSV UTF-8.'}), 400
 
     reader = csv.DictReader(io.StringIO(content))
-    # Normalize header names (lowercase, strip spaces)
     reader.fieldnames = [f.strip().lower() for f in (reader.fieldnames or [])]
 
     required = {'date', 'type', 'amount'}
@@ -186,16 +154,15 @@ def import_csv():
 
     for i, row in enumerate(reader, 2):
         try:
-            raw_date  = row.get('date', '').strip()
-            raw_type  = row.get('type', '').strip().lower()
-            raw_amt   = row.get('amount', '').strip().replace(',', '').replace('₹', '').replace('Rs', '').replace('rs', '')
-            note      = row.get('note', '').strip()
+            raw_date = row.get('date', '').strip()
+            raw_type = row.get('type', '').strip().lower()
+            raw_amt  = row.get('amount', '').strip().replace(',', '').replace('₹', '').replace('Rs', '').replace('rs', '')
+            note     = row.get('note', '').strip()
 
             if not raw_date and not raw_amt:
                 skipped += 1
                 continue
 
-            # Parse date — accept DD/MM/YYYY, DD-MM-YYYY, YYYY-MM-DD
             parsed_date = None
             for fmt in ('%Y-%m-%d', '%d/%m/%Y', '%d-%m-%Y', '%m/%d/%Y'):
                 try:
@@ -235,7 +202,6 @@ def template_csv():
         ['date', 'type', 'amount', 'note'],
         ['2026-05-01', 'income', '5000', 'Morning sales'],
         ['2026-05-01', 'expense', '800', 'Supplier payment'],
-        ['2026-05-02', 'income', '6200', 'Prescription + OTC'],
     ]
     output = io.StringIO()
     csv.writer(output).writerows(rows)

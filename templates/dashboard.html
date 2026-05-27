@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard — Pharmacy</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <h1>&#x1f48a; Pharmacy</h1>
+            <nav class="nav-tabs">
+                <a href="/" class="nav-tab">Add Entry</a>
+                <a href="/dashboard" class="nav-tab active">Dashboard</a>
+            </nav>
+        </div>
+    </header>
+
+    <main>
+        <!-- Today's Key Stats -->
+        <section class="stats-grid">
+            <div class="stat-card income-card">
+                <div class="stat-label">Today's Income</div>
+                <div class="stat-value" id="today-income">&#x20b9;0.00</div>
+            </div>
+            <div class="stat-card expense-card">
+                <div class="stat-label">Today's Expenses</div>
+                <div class="stat-value" id="today-expenses">&#x20b9;0.00</div>
+            </div>
+            <div class="stat-card profit-card">
+                <div class="stat-label">Today's Profit</div>
+                <div class="stat-value" id="today-profit">&#x20b9;0.00</div>
+            </div>
+        </section>
+
+        <!-- Today's Log -->
+        <section class="log-section">
+            <div class="log-header">
+                <h2>Today's Log</h2>
+                <span id="today-date" style="color:#64748b; font-size:0.85rem;"></span>
+            </div>
+            <div class="log-grid">
+                <div class="log-column">
+                    <h3 class="log-column-title income-title">Income</h3>
+                    <div id="income-list" class="entry-list">
+                        <p class="empty-msg">No income entries today</p>
+                    </div>
+                </div>
+                <div class="log-column">
+                    <h3 class="log-column-title expense-title">Expenses</h3>
+                    <div id="expense-list" class="entry-list">
+                        <p class="empty-msg">No expense entries today</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Summary -->
+        <section class="summary-section">
+            <h2>Summary</h2>
+            <div class="summary-grid">
+                <div class="summary-card">
+                    <h3>This Month</h3>
+                    <div class="summary-row">
+                        <span>Income</span>
+                        <span class="income-text" id="monthly-income">&#x20b9;0.00</span>
+                    </div>
+                    <div class="summary-row">
+                        <span>Expenses</span>
+                        <span class="expense-text" id="monthly-expenses">&#x20b9;0.00</span>
+                    </div>
+                    <div class="summary-row summary-total">
+                        <span>Profit</span>
+                        <span id="monthly-profit">&#x20b9;0.00</span>
+                    </div>
+                </div>
+                <div class="summary-card">
+                    <h3>All Time</h3>
+                    <div class="summary-row">
+                        <span>Income</span>
+                        <span class="income-text" id="alltime-income">&#x20b9;0.00</span>
+                    </div>
+                    <div class="summary-row">
+                        <span>Expenses</span>
+                        <span class="expense-text" id="alltime-expenses">&#x20b9;0.00</span>
+                    </div>
+                    <div class="summary-row summary-total">
+                        <span>Profit</span>
+                        <span id="alltime-profit">&#x20b9;0.00</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- All Entries History -->
+        <section class="log-section">
+            <div class="log-header">
+                <h2>All Entries</h2>
+                <span style="color:#64748b; font-size:0.82rem;" id="all-count"></span>
+            </div>
+            <div id="all-entries-list" class="all-entries-table">
+                <p class="empty-msg">Loading...</p>
+            </div>
+        </section>
+    </main>
+
+    <div id="toast" class="toast"></div>
+    <script src="/static/common.js"></script>
+    <script>
+        document.getElementById('today-date').textContent = new Date().toLocaleDateString('en-IN', {
+            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+        });
+
+        async function loadSummary() {
+            const d = await fetch('/api/summary').then(r => r.json());
+
+            document.getElementById('today-income').textContent   = fmt(d.today.income);
+            document.getElementById('today-expenses').textContent = fmt(d.today.expenses);
+            const tp = document.getElementById('today-profit');
+            tp.textContent = fmt(d.today.profit);
+            tp.style.color = d.today.profit >= 0 ? '#16a34a' : '#dc2626';
+
+            document.getElementById('monthly-income').textContent   = fmt(d.monthly.income);
+            document.getElementById('monthly-expenses').textContent = fmt(d.monthly.expenses);
+            const mp = document.getElementById('monthly-profit');
+            mp.textContent = fmt(d.monthly.profit);
+            mp.style.color = d.monthly.profit >= 0 ? '#16a34a' : '#dc2626';
+
+            document.getElementById('alltime-income').textContent   = fmt(d.alltime.income);
+            document.getElementById('alltime-expenses').textContent = fmt(d.alltime.expenses);
+            const ap = document.getElementById('alltime-profit');
+            ap.textContent = fmt(d.alltime.profit);
+            ap.style.color = d.alltime.profit >= 0 ? '#16a34a' : '#dc2626';
+        }
+
+        async function loadAllEntries() {
+            const entries = await fetch('/api/entries/all').then(r => r.json());
+            const container = document.getElementById('all-entries-list');
+            document.getElementById('all-count').textContent = `${entries.length} entries`;
+
+            if (entries.length === 0) {
+                container.innerHTML = '<p class="empty-msg">No entries yet</p>';
+                return;
+            }
+
+            // Group by date
+            const byDate = {};
+            entries.forEach(e => {
+                const d = e.created_at.split(' ')[0];
+                if (!byDate[d]) byDate[d] = [];
+                byDate[d].push(e);
+            });
+
+            container.innerHTML = '';
+            Object.keys(byDate).sort().reverse().forEach(day => {
+                const dayEntries = byDate[day];
+                const inc = dayEntries.filter(e => e.type === 'income').reduce((s, e) => s + e.amount, 0);
+                const exp = dayEntries.filter(e => e.type === 'expense').reduce((s, e) => s + e.amount, 0);
+
+                const section = document.createElement('div');
+                section.className = 'history-day';
+
+                const header = document.createElement('div');
+                header.className = 'history-day-header';
+                header.innerHTML = `
+                    <span class="history-date">${formatDate(day)}</span>
+                    <span class="history-day-stats">
+                        <span class="income-text">${fmt(inc)}</span>
+                        <span style="color:#64748b; margin:0 0.3rem">|</span>
+                        <span class="expense-text">${fmt(exp)}</span>
+                        <span style="color:#64748b; margin:0 0.3rem">|</span>
+                        <span style="color:${(inc-exp)>=0?'#16a34a':'#dc2626'}; font-weight:700">${fmt(inc-exp)}</span>
+                    </span>
+                `;
+                section.appendChild(header);
+
+                dayEntries.forEach(e => {
+                    const row = document.createElement('div');
+                    row.className = `history-row ${e.type}-item`;
+                    row.innerHTML = `
+                        <span class="history-type ${e.type}-text">${e.type === 'income' ? '▲' : '▼'}</span>
+                        <span class="entry-amount ${e.type}-text">${fmt(e.amount)}</span>
+                        <span class="entry-note" style="flex:1">${e.note || '—'}</span>
+                        <span class="entry-time">${fmtTime(e.created_at)}</span>
+                        <button class="delete-btn" onclick="deleteEntry(${e.id})">✕</button>
+                    `;
+                    section.appendChild(row);
+                });
+
+                container.appendChild(section);
+            });
+        }
+
+        function formatDate(str) {
+            return new Date(str + 'T00:00:00').toLocaleDateString('en-IN', {
+                weekday: 'short', day: 'numeric', month: 'short', year: 'numeric'
+            });
+        }
+
+        async function deleteEntry(id) {
+            if (!confirm('Delete this entry?')) return;
+            await fetch(`/api/delete_entry/${id}`, { method: 'DELETE' });
+            showToast('Deleted', 'error');
+            await Promise.all([loadSummary(), loadTodayLists(), loadAllEntries()]);
+        }
+
+        async function loadTodayLists() {
+            const entries = await fetch('/api/entries/today').then(r => r.json());
+            renderTodayLists(entries);
+        }
+
+        Promise.all([loadSummary(), loadTodayLists(), loadAllEntries()]);
+    </script>
+</body>
+</html>
