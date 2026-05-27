@@ -11,7 +11,6 @@
         <div class="header-content">
             <h1>&#x1f48a; Pharmacy</h1>
             <nav class="nav-tabs">
-                <a href="/" class="nav-tab">Add Entry</a>
                 <a href="/dashboard" class="nav-tab active">Dashboard</a>
             </nav>
         </div>
@@ -183,7 +182,6 @@
                         <span class="entry-amount ${e.type}-text">${fmt(e.amount)}</span>
                         <span class="entry-note" style="flex:1">${e.note || '—'}</span>
                         <span class="entry-time">${fmtTime(e.created_at)}</span>
-                        <button class="delete-btn" onclick="deleteEntry(${e.id})">✕</button>
                     `;
                     section.appendChild(row);
                 });
@@ -198,16 +196,40 @@
             });
         }
 
-        async function deleteEntry(id) {
-            if (!confirm('Delete this entry?')) return;
-            await fetch(`/api/delete_entry/${id}`, { method: 'DELETE' });
-            showToast('Deleted', 'error');
-            await Promise.all([loadSummary(), loadTodayLists(), loadAllEntries()]);
-        }
-
         async function loadTodayLists() {
             const entries = await fetch('/api/entries/today').then(r => r.json());
-            renderTodayLists(entries);
+            const incomeList  = document.getElementById('income-list');
+            const expenseList = document.getElementById('expense-list');
+
+            const inc = entries.filter(e => e.type === 'income');
+            const exp = entries.filter(e => e.type === 'expense');
+
+            function makeReadOnlyEl(e) {
+                const div = document.createElement('div');
+                div.className = `entry-item ${e.type}-item`;
+                div.innerHTML = `
+                    <div class="entry-left">
+                        <span class="entry-amount">${fmt(e.amount)}</span>
+                        ${e.note ? `<span class="entry-note">${e.note}</span>` : ''}
+                        <span class="entry-time">${fmtTime(e.created_at)}</span>
+                    </div>
+                `;
+                return div;
+            }
+
+            if (inc.length === 0) {
+                incomeList.innerHTML = '<p class="empty-msg">No income entries today</p>';
+            } else {
+                incomeList.innerHTML = '';
+                inc.forEach(e => incomeList.appendChild(makeReadOnlyEl(e)));
+            }
+
+            if (exp.length === 0) {
+                expenseList.innerHTML = '<p class="empty-msg">No expense entries today</p>';
+            } else {
+                expenseList.innerHTML = '';
+                exp.forEach(e => expenseList.appendChild(makeReadOnlyEl(e)));
+            }
         }
 
         Promise.all([loadSummary(), loadTodayLists(), loadAllEntries()]);
