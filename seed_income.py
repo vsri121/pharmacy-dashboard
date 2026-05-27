@@ -1,5 +1,5 @@
 """
-Run this once on PythonAnywhere to load historical income data:
+Run this once on PythonAnywhere to load historical income + expense data:
     python seed_income.py
 """
 import sqlite3, os
@@ -148,7 +148,23 @@ for day, exp in expected.items():
     if got != exp:
         all_ok = False
 
-if not all_ok:
+expenses = [
+    ('2026-05-27', 4000.00,  ''),
+    ('2026-05-27', 3250.00,  ''),
+    ('2026-05-27', 1175.00,  ''),
+    ('2026-05-27', 3000.00,  ''),
+    ('2026-05-27', 3500.00,  'Shiva Kumar'),
+    ('2026-05-27', 3500.00,  'Shiva Kumar'),
+    ('2026-05-27', 3000.00,  'Madduleti Srirangapoor'),
+    ('2026-05-27', 2750.00,  'Shiva Chennaram'),
+    ('2026-05-27', 30398.00, 'Delight Biopharma'),
+]
+
+exp_total = sum(a for _, a, _ in expenses)
+exp_expected = 54573
+print(f'\nExpenses total: {exp_total:,.0f}  {"✓" if exp_total == exp_expected else f"✗ expected {exp_expected:,}"}')
+
+if not all_ok or exp_total != exp_expected:
     print('\nFix mismatches before inserting.')
 else:
     conn = sqlite3.connect(DB_PATH)
@@ -163,6 +179,10 @@ else:
         "INSERT INTO entries (type, amount, note, created_at) VALUES ('income', ?, '', ? || ' 00:00:00')",
         [(amt, d) for d, amt in entries]
     )
+    conn.executemany(
+        "INSERT INTO entries (type, amount, note, created_at) VALUES ('expense', ?, ?, ? || ' 00:00:00')",
+        [(amt, note, d) for d, amt, note in expenses]
+    )
     conn.commit()
     conn.close()
-    print(f'\nInserted {len(entries)} income entries into {DB_PATH}')
+    print(f'Inserted {len(entries)} income + {len(expenses)} expense entries into {DB_PATH}')
