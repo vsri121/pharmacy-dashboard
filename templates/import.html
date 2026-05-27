@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Import Data — Pharmacy Dashboard</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .import-card {
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            max-width: 640px;
+            margin: 0 auto;
+        }
+        .import-card h2 { font-size: 1.15rem; font-weight: 700; margin-bottom: 0.5rem; }
+        .import-card p  { color: #64748b; font-size: 0.88rem; margin-bottom: 1.25rem; line-height: 1.6; }
+
+        .steps { counter-reset: step; list-style: none; padding: 0; margin-bottom: 1.5rem; }
+        .steps li {
+            counter-increment: step;
+            display: flex;
+            gap: 0.75rem;
+            align-items: flex-start;
+            margin-bottom: 0.85rem;
+            font-size: 0.9rem;
+        }
+        .steps li::before {
+            content: counter(step);
+            min-width: 24px;
+            height: 24px;
+            background: #1e293b;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: 700;
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+
+        .format-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.82rem;
+            margin: 0.75rem 0 1.25rem;
+        }
+        .format-table th, .format-table td {
+            text-align: left;
+            padding: 0.45rem 0.6rem;
+            border: 1px solid #e2e8f0;
+        }
+        .format-table th { background: #f8fafc; font-weight: 700; color: #475569; }
+        .format-table td code {
+            background: #f1f5f9;
+            padding: 0.1rem 0.3rem;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+
+        .drop-zone {
+            border: 2px dashed #cbd5e1;
+            border-radius: 10px;
+            padding: 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 0.2s, background 0.2s;
+            margin-bottom: 1rem;
+        }
+        .drop-zone.drag-over { border-color: #2563eb; background: #eff6ff; }
+        .drop-zone p { color: #64748b; font-size: 0.88rem; margin: 0; }
+        .drop-zone strong { display: block; font-size: 1rem; color: #1e293b; margin-bottom: 0.35rem; }
+        #file-input { display: none; }
+
+        .result-box {
+            border-radius: 8px;
+            padding: 1rem;
+            margin-top: 1rem;
+            font-size: 0.88rem;
+            display: none;
+        }
+        .result-box.success { background: #dcfce7; color: #15803d; }
+        .result-box.partial { background: #fef9c3; color: #854d0e; }
+        .result-box.error   { background: #fee2e2; color: #b91c1c; }
+        .result-box ul { margin: 0.5rem 0 0 1rem; padding: 0; }
+        .result-box li { margin-bottom: 0.2rem; }
+
+        .back-link { color: #2563eb; text-decoration: none; font-size: 0.85rem; }
+        .back-link:hover { text-decoration: underline; }
+        .template-link { color: #16a34a; font-weight: 600; text-decoration: none; font-size: 0.85rem; }
+        .template-link:hover { text-decoration: underline; }
+
+        .btn-import { background: #2563eb; color: white; margin-top: 0.5rem; }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <h1>&#x1f48a; Import Existing Data</h1>
+            <a href="/" class="back-link" style="color:#94a3b8;">&#x2190; Back to Dashboard</a>
+        </div>
+    </header>
+
+    <main style="padding-top: 2rem;">
+        <div class="import-card">
+            <h2>Import from Excel / CSV</h2>
+            <p>
+                Export your Excel file as a CSV, make sure it has the right columns, then upload it below.
+                All historical data will be added to the database.
+            </p>
+
+            <ol class="steps">
+                <li>In Excel, go to <strong>File → Save As → CSV UTF-8 (.csv)</strong></li>
+                <li>Make sure your sheet has these 4 columns (add them if missing)</li>
+                <li>Upload the CSV file below</li>
+            </ol>
+
+            <table class="format-table">
+                <thead>
+                    <tr><th>Column</th><th>Required?</th><th>Format / Example</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><strong>date</strong></td><td>Yes</td><td><code>2026-05-01</code> or <code>01/05/2026</code></td></tr>
+                    <tr><td><strong>type</strong></td><td>Yes</td><td><code>income</code> or <code>expense</code></td></tr>
+                    <tr><td><strong>amount</strong></td><td>Yes</td><td><code>5000</code> or <code>1,200.50</code></td></tr>
+                    <tr><td><strong>note</strong></td><td>No</td><td>Supplier name, description, etc.</td></tr>
+                </tbody>
+            </table>
+
+            <a href="/api/template_csv" class="template-link">&#x2B07; Download blank template CSV</a>
+
+            <br><br>
+
+            <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+                <strong>Click to choose your CSV file</strong>
+                <p>or drag and drop it here</p>
+                <p id="file-name" style="margin-top:0.5rem; color:#2563eb; font-weight:600;"></p>
+            </div>
+            <input type="file" id="file-input" accept=".csv">
+
+            <button class="btn btn-import" id="import-btn" onclick="doImport()" disabled>
+                Import Data
+            </button>
+
+            <div class="result-box" id="result-box"></div>
+        </div>
+    </main>
+
+    <script>
+        const dropZone  = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const importBtn = document.getElementById('import-btn');
+        const fileNameEl = document.getElementById('file-name');
+        let selectedFile = null;
+
+        fileInput.addEventListener('change', () => {
+            selectedFile = fileInput.files[0];
+            if (selectedFile) {
+                fileNameEl.textContent = selectedFile.name;
+                importBtn.disabled = false;
+            }
+        });
+
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('drag-over');
+        });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('drag-over');
+            selectedFile = e.dataTransfer.files[0];
+            if (selectedFile) {
+                fileNameEl.textContent = selectedFile.name;
+                importBtn.disabled = false;
+            }
+        });
+
+        async function doImport() {
+            if (!selectedFile) return;
+            importBtn.disabled = true;
+            importBtn.textContent = 'Importing…';
+
+            const formData = new FormData();
+            formData.append('csvfile', selectedFile);
+
+            const res  = await fetch('/api/import_csv', { method: 'POST', body: formData });
+            const data = await res.json();
+
+            const box = document.getElementById('result-box');
+            box.style.display = 'block';
+
+            if (!res.ok) {
+                box.className = 'result-box error';
+                box.innerHTML = '<strong>Error:</strong> ' + data.error;
+            } else if (data.errors && data.errors.length > 0) {
+                box.className = 'result-box partial';
+                const errList = data.errors.map(e => `<li>${e}</li>`).join('');
+                box.innerHTML = `
+                    <strong>&#x2714; Imported ${data.imported} rows</strong> (${data.skipped} blank rows skipped)<br>
+                    <strong>Rows with issues (not imported):</strong>
+                    <ul>${errList}</ul>
+                `;
+            } else {
+                box.className = 'result-box success';
+                box.innerHTML = `<strong>&#x2714; Successfully imported ${data.imported} entries!</strong><br>
+                    ${data.skipped ? data.skipped + ' blank rows were skipped.' : ''}
+                    <br><br><a href="/" style="color:#15803d; font-weight:600;">Go to Dashboard &#x2192;</a>`;
+            }
+
+            importBtn.disabled = false;
+            importBtn.textContent = 'Import Data';
+        }
+    </script>
+</body>
+</html>
